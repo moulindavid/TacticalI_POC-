@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
 
 [RequireComponent(typeof(NavMeshAgent))]
 public class PlayerMovement : MonoBehaviour
@@ -12,55 +13,61 @@ public class PlayerMovement : MonoBehaviour
     private GameObject _indicatorInstance;
     private NavMeshAgent _agent;
     private Camera _mainCamera;
-    
+    private DecalProjector _decal;
     private GameControls _controls;
     private bool _isMouseHeld = false;
 
     private void Awake()
     {
+        
         _agent = GetComponent<NavMeshAgent>();
         _mainCamera = Camera.main;
         _controls = new GameControls();
-
-        if (destinationIndicatorPrefab != null)
+        _decal =  GetComponent<DecalProjector>();
+        if (destinationIndicatorPrefab)
         {
             _indicatorInstance = Instantiate(destinationIndicatorPrefab);
+        
+            _decal = _indicatorInstance.GetComponent<DecalProjector>();
+        
             _indicatorInstance.SetActive(false);
         }
     }
-
+    
     private void OnEnable()
     {
         _controls.Enable();
-        
-        _controls.Player.Interact.started += _ => _isMouseHeld = true;
-        
+    
+        // Initial Click (Started): Trigger the visual "Pop"
+        _controls.Player.Interact.started += _ => 
+        {
+            _isMouseHeld = true;
+            TriggerIndicatorAnimation();
+        };
+    
         _controls.Player.Interact.canceled += _ => _isMouseHeld = false;
-    }
-
-    private void OnDisable()
-    {
-        _controls.Disable();
     }
 
     private void Update()
     {
         if (_isMouseHeld)
         {
-            MoveToCursor();
-        }
-    
-        // Auto-hide indicator when the player gets close enough
-        if (_indicatorInstance != null && _indicatorInstance.activeSelf)
-        {
-            if (!_agent.pathPending && _agent.remainingDistance <= _agent.stoppingDistance)
-            {
-                _indicatorInstance.SetActive(false);
-            }
+            UpdateDestination(); // Move the agent and indicator position
         }
     }
 
-    private void MoveToCursor()
+    private void TriggerIndicatorAnimation()
+    {
+        if (_indicatorInstance == null) return;
+
+        _indicatorInstance.SetActive(true);
+        _indicatorInstance.transform.localScale = Vector3.zero;
+    
+        StopAllCoroutines(); 
+        StartCoroutine(AnimateIndicator());
+    }
+
+    private void UpdateDestination()
     {
         Vector2 mousePos = Mouse.current.position.ReadValue();
         Ray ray = _mainCamera.ScreenPointToRay(mousePos);
@@ -69,13 +76,29 @@ public class PlayerMovement : MonoBehaviour
         {
             _agent.SetDestination(hit.point);
 
-            // Update indicator position and show it
-            if (_indicatorInstance != null)
+            if (_indicatorInstance)
             {
-                _indicatorInstance.SetActive(true);
-                // Offset Y slightly so it doesn't "z-fight" with the floor
-                _indicatorInstance.transform.position = hit.point + Vector3.up * 0.05f;
+                _indicatorInstance.transform.position = hit.point;
             }
         }
+    }
+
+    //TODO: feels a bit fast but fine for the moment
+    private System.Collections.IEnumerator AnimateIndicator()
+    {
+        float t = 0;
+        float animationSpeed = 10f;
+
+        while (t < 1)
+        {
+            t += Time.deltaTime * animationSpeed;
+        
+            _indicatorInstance.transform.localScale = Vector3.one * t;
+            _decal.fadeFactor = t; 
+            yield return null;
+        }
+    
+        _indicatorInstance.transform.localScale = Vector3.one;
+        _decal.fadeFactor = 1f;
     }
 }

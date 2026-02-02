@@ -87,7 +87,7 @@ public class PlayerMovement : MonoBehaviour
     private System.Collections.IEnumerator AnimateIndicator()
     {
         float t = 0;
-        float animationSpeed = 10f;
+        float animationSpeed = 3f;
 
         while (t < 1)
         {
